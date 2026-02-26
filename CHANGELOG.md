@@ -29,6 +29,7 @@
 - scripts/setup_ghidra.sh：移除 DOWNLOAD_DIR readonly 避免測試重載衝突
 - scripts/setup_mcp.sh：移除模組常數 readonly 並加入預設值，增強測試相容性
 - install.sh：修復 SC2155（SCRIPT_DIR 宣告與賦值分離）、SC2034（VERBOSE 加 export）
+- install.sh：_log() 日誌檔不可寫時靜默降級為 stdout-only（SPEC-004 Case 5）
 - scripts/setup_mcp.sh：修復 SC2162（所有 read 指令加入 -r 旗標）
 - docs/architecture.md：系統架構文件（Mermaid 架構圖 + 資料流序列圖）
 - Makefile：調整為 Bash 腳本專案（build=語法檢查、test=bats、lint=shellcheck）

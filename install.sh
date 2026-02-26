@@ -32,7 +32,7 @@ _log() {
     local ts
     ts="$(date '+%Y-%m-%d %H:%M:%S')"
     printf "${color}[%-5s]\033[0m %s\n" "$level" "$msg"
-    echo "[$ts] [$level] $msg" | sanitize_log >> "$LOG_FILE" 2>/dev/null || true
+    { echo "[$ts] [$level] $msg" | sanitize_log >> "$LOG_FILE"; } 2>/dev/null || true
 }
 
 log_info()  { _log "INFO"  "$1" "\033[0;34m"; }
