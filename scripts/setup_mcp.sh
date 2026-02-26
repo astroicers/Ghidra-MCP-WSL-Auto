@@ -203,7 +203,7 @@ _setup_mcp_configure_cli_mode() {
     cat > "$MCP_ENV_FILE" <<'EOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
-MCP_SERVER_PORT=8080
+MCP_SERVER_PORT=60006
 EOF
     chmod 644 "$MCP_ENV_FILE"
     log_ok "已選擇 Claude Code CLI 模式"
@@ -211,7 +211,7 @@ EOF
     echo "  下一步：在 WSL 中安裝 Claude Code"
     echo "    npm install -g @anthropic-ai/claude-code"
     echo ""
-    echo "  啟動後執行 'claude mcp add ghidra http://127.0.0.1:8080/sse'"
+    echo "  啟動後執行 'claude mcp add --transport sse ghidra http://127.0.0.1:60006/sse'"
     echo ""
 }
 
@@ -247,7 +247,7 @@ _setup_mcp_configure_api_key() {
 MCP_MODE=apikey
 LLM_PROVIDER=${provider}
 LLM_API_KEY=${api_key}
-MCP_SERVER_PORT=8080
+MCP_SERVER_PORT=60006
 EOF
 
     chmod 600 "$MCP_ENV_FILE"
@@ -263,7 +263,7 @@ _setup_mcp_create_env_template() {
             cat > "$MCP_ENV_FILE" <<'ENVEOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
-MCP_SERVER_PORT=8080
+MCP_SERVER_PORT=60006
 ENVEOF
         }
         chmod 644 "$MCP_ENV_FILE"
@@ -303,22 +303,32 @@ fi
 MCP_BRIDGE=$(find "$MCP_PATH" -name "bridge*.py" -o -name "server*.py" 2>/dev/null | head -1)
 
 if [[ -n "$MCP_BRIDGE" ]]; then
-    echo "[INFO] 啟動 MCP Bridge: $(basename "$MCP_BRIDGE")"
-    python3 "$MCP_BRIDGE" &
-    MCP_PID=$!
+    MCP_PORT="${MCP_SERVER_PORT:-60006}"
 
-    # 等待 MCP 就緒 (最多 30 秒)
-    MCP_PORT="${MCP_SERVER_PORT:-8080}"
-    for i in {1..30}; do
-        if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
-            echo "[OK] MCP Bridge 已就緒 (port: ${MCP_PORT})"
-            break
+    # 啟動前檢查 port 是否已被佔用
+    if ss -tlnp 2>/dev/null | grep -q ":${MCP_PORT} " || \
+       curl -s --max-time 1 "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
+        echo "[ERROR] Port ${MCP_PORT} 已被佔用，MCP Bridge 無法啟動"
+        echo "[INFO]  請檢查: ss -tlnp | grep :${MCP_PORT}"
+        echo "[INFO]  或修改 ${ENV_FILE} 中的 MCP_SERVER_PORT 為其他 port"
+        MCP_PID=""
+    else
+        echo "[INFO] 啟動 MCP Bridge: $(basename "$MCP_BRIDGE")"
+        python3 "$MCP_BRIDGE" &
+        MCP_PID=$!
+
+        # 等待 MCP 就緒 (最多 30 秒)
+        for i in {1..30}; do
+            if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
+                echo "[OK] MCP Bridge 已就緒 (port: ${MCP_PORT})"
+                break
+            fi
+            sleep 1
+        done
+
+        if [[ $i -eq 30 ]]; then
+            echo "[WARN] MCP Bridge 啟動逾時，Ghidra 仍可正常使用"
         fi
-        sleep 1
-    done
-
-    if [[ $i -eq 30 ]]; then
-        echo "[WARN] MCP Bridge 啟動逾時，Ghidra 仍可正常使用"
     fi
 else
     echo "[WARN] 未找到 MCP Bridge 腳本，僅啟動 Ghidra"

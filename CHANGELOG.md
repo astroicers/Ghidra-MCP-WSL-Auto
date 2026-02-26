@@ -30,6 +30,8 @@
 - scripts/setup_mcp.sh：插件掛載後新增 ZIP 檔案驗證，失敗時回傳非零 exit code
 
 ### Fixed
+- scripts/setup_mcp.sh：MCP Bridge 連接埠預設改為 60006 高位 port（與 Ghidra 插件 HTTP 8080 區分，避免常用 port 衝突），啟動器新增 port 佔用檢查
+- scripts/setup_mcp.sh：`claude mcp add` 指令加入 `--transport sse` 旗標，修正 Claude Code 傳輸模式警告
 - scripts/setup_mcp.sh：修復插件掛載雙層 ZIP 解包問題（Release ZIP 為外層包裝，需提取內層插件 ZIP 再解壓）
 - scripts/setup_ghidra.sh：移除 DOWNLOAD_DIR readonly 避免測試重載衝突
 - scripts/setup_mcp.sh：移除模組常數 readonly 並加入預設值，增強測試相容性

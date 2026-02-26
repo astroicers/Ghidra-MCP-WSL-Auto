@@ -131,7 +131,7 @@ MCP_PID=$!
 
 # 等待 MCP 就緒 (最多 30 秒)
 for i in {1..30}; do
-    if curl -s "http://127.0.0.1:${MCP_SERVER_PORT:-8080}/" >/dev/null 2>&1; then
+    if curl -s "http://127.0.0.1:${MCP_SERVER_PORT:-60006}/" >/dev/null 2>&1; then
         echo "[OK] MCP Bridge 已就緒"
         break
     fi
