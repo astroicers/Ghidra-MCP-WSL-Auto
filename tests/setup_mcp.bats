@@ -68,6 +68,7 @@ teardown() {
     [ "$perms" = "644" ]
 
     grep -q "MCP_MODE" "$env_file"
+    grep -q "GHIDRA_PLUGIN_PORT" "$env_file"
     grep -q "MCP_SERVER_PORT" "$env_file"
 }
 
@@ -148,6 +149,10 @@ teardown() {
     grep -q "ghidraRun" "$launcher"
     grep -q "MCP_DIR" "$launcher"
     grep -q ".venv" "$launcher"
+    grep -q "\-\-ghidra-server" "$launcher"
+    grep -q "\-\-transport sse" "$launcher"
+    grep -q "\-\-mcp-port" "$launcher"
+    grep -q "GHIDRA_PLUGIN_PORT" "$launcher"
 
     rm -f "$launcher"
 }

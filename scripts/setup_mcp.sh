@@ -203,6 +203,7 @@ _setup_mcp_configure_cli_mode() {
     cat > "$MCP_ENV_FILE" <<'EOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
+GHIDRA_PLUGIN_PORT=18080
 MCP_SERVER_PORT=60006
 EOF
     chmod 644 "$MCP_ENV_FILE"
@@ -247,6 +248,7 @@ _setup_mcp_configure_api_key() {
 MCP_MODE=apikey
 LLM_PROVIDER=${provider}
 LLM_API_KEY=${api_key}
+GHIDRA_PLUGIN_PORT=18080
 MCP_SERVER_PORT=60006
 EOF
 
@@ -263,6 +265,7 @@ _setup_mcp_create_env_template() {
             cat > "$MCP_ENV_FILE" <<'ENVEOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
+GHIDRA_PLUGIN_PORT=18080
 MCP_SERVER_PORT=60006
 ENVEOF
         }
@@ -299,13 +302,15 @@ if [[ -d "${VENV_DIR}/bin" ]]; then
     source "${VENV_DIR}/bin/activate"
 fi
 
+# Port 設定
+MCP_PORT="${MCP_SERVER_PORT:-60006}"
+GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-18080}"
+
 # 尋找 MCP Bridge 腳本
 MCP_BRIDGE=$(find "$MCP_PATH" -name "bridge*.py" -o -name "server*.py" 2>/dev/null | head -1)
 
 if [[ -n "$MCP_BRIDGE" ]]; then
-    MCP_PORT="${MCP_SERVER_PORT:-60006}"
-
-    # 啟動前檢查 port 是否已被佔用
+    # 啟動前檢查 MCP Bridge port 是否已被佔用
     if ss -tlnp 2>/dev/null | grep -q ":${MCP_PORT} " || \
        curl -s --max-time 1 "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
         echo "[ERROR] Port ${MCP_PORT} 已被佔用，MCP Bridge 無法啟動"
@@ -314,7 +319,12 @@ if [[ -n "$MCP_BRIDGE" ]]; then
         MCP_PID=""
     else
         echo "[INFO] 啟動 MCP Bridge: $(basename "$MCP_BRIDGE")"
-        python3 "$MCP_BRIDGE" &
+        echo "[INFO] Ghidra 插件 HTTP port: ${GHIDRA_PORT}, MCP SSE port: ${MCP_PORT}"
+        python3 "$MCP_BRIDGE" \
+            --ghidra-server "http://127.0.0.1:${GHIDRA_PORT}/" \
+            --transport sse \
+            --mcp-host 127.0.0.1 \
+            --mcp-port "${MCP_PORT}" &
         MCP_PID=$!
 
         # 等待 MCP 就緒 (最多 30 秒)

@@ -34,7 +34,7 @@ ghidra-mcp    # 啟動 Ghidra + MCP Bridge
 2. 勾選 **GhidraMCPPlugin**
 3. 重啟 Ghidra
 
-啟用後，Ghidra 插件 HTTP Server 會在 `http://127.0.0.1:8080` 運行，MCP Bridge SSE Server 則在 `http://127.0.0.1:60006`。
+啟用後，Ghidra 插件 HTTP Server 會在 `http://127.0.0.1:18080` 運行（可透過 `.env` 中 `GHIDRA_PLUGIN_PORT` 自訂），MCP Bridge SSE Server 則在 `http://127.0.0.1:60006`。
 
 ## 系統需求
 

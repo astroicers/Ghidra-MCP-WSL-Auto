@@ -125,13 +125,21 @@ VENV_DIR="/opt/ghidra-mcp/GhidraMCP/.venv"
 [[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
 source "${VENV_DIR}/bin/activate"
 
-# 啟動 MCP Bridge (背景)
-python3 /opt/ghidra-mcp/GhidraMCP/bridge_mcp_ghidra.py &
+# Port 設定
+MCP_PORT="${MCP_SERVER_PORT:-60006}"
+GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-18080}"
+
+# 啟動 MCP Bridge (背景，帶完整參數)
+python3 /opt/ghidra-mcp/GhidraMCP/bridge_mcp_ghidra.py \
+    --ghidra-server "http://127.0.0.1:${GHIDRA_PORT}/" \
+    --transport sse \
+    --mcp-host 127.0.0.1 \
+    --mcp-port "${MCP_PORT}" &
 MCP_PID=$!
 
 # 等待 MCP 就緒 (最多 30 秒)
 for i in {1..30}; do
-    if curl -s "http://127.0.0.1:${MCP_SERVER_PORT:-60006}/" >/dev/null 2>&1; then
+    if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
         echo "[OK] MCP Bridge 已就緒"
         break
     fi
