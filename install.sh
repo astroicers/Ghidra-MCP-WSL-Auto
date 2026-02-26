@@ -5,7 +5,8 @@
 set -euo pipefail
 
 # ── 全域常數 ──
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly INSTALL_DIR="${INSTALL_DIR:-/opt/ghidra}"
 readonly MCP_DIR="${MCP_DIR:-/opt/ghidra-mcp}"
 readonly LOG_FILE="${LOG_FILE:-/var/log/ghidra-mcp-install.log}"
@@ -91,7 +92,7 @@ parse_args() {
                 exit 0
                 ;;
             -v|--verbose)
-                VERBOSE=true
+                export VERBOSE=true
                 set -x
                 shift
                 ;;

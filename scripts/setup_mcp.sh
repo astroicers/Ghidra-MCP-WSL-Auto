@@ -108,12 +108,22 @@ setup_mcp_mount_extension() {
             else
                 log_warn "插件下載失敗，請手動安裝"
                 log_warn "下載位址: ${mcp_release_url}"
-                return 0
+                return 1
             fi
         else
             log_warn "無法找到預編譯插件，請參考 GhidraMCP README 手動編譯"
-            return 0
+            return 1
         fi
+    fi
+
+    # ── 掛載後驗證 ──
+    local mounted_count
+    mounted_count=$(find "$ext_dir" -name "*.zip" 2>/dev/null | wc -l)
+    if [[ "$mounted_count" -gt 0 ]]; then
+        log_ok "插件掛載驗證通過: ${ext_dir} 中有 ${mounted_count} 個 ZIP 插件"
+    else
+        log_warn "插件掛載驗證失敗: ${ext_dir} 中未找到 ZIP 插件"
+        return 1
     fi
 }
 
@@ -142,7 +152,7 @@ ENVEOF
     # 若已存在 .env 且有 API Key，詢問是否覆寫
     if [[ -f "$MCP_ENV_FILE" ]] && grep -q "LLM_API_KEY=." "$MCP_ENV_FILE"; then
         log_skip "API Key 已設定 (${MCP_ENV_FILE})"
-        read -p "是否重新設定 API Key? [y/N]: " overwrite
+        read -r -p "是否重新設定 API Key? [y/N]: " overwrite
         if [[ ! "$overwrite" =~ ^[Yy]$ ]]; then
             return 0
         fi
@@ -156,16 +166,16 @@ ENVEOF
     echo ""
 
     local provider_choice provider
-    read -p "  選擇 [1-3] (預設: 1): " provider_choice
+    read -r -p "  選擇 [1-3] (預設: 1): " provider_choice
     case "${provider_choice:-1}" in
         1) provider="openai" ;;
         2) provider="anthropic" ;;
-        3) read -p "  提供者名稱: " provider ;;
+        3) read -r -p "  提供者名稱: " provider ;;
         *) provider="openai" ;;
     esac
 
     local api_key
-    read -s -p "  請輸入 API Key: " api_key
+    read -r -s -p "  請輸入 API Key: " api_key
     echo ""
 
     if [[ -z "$api_key" ]]; then

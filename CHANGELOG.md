@@ -22,9 +22,13 @@
 ### Changed
 - tests/：重寫所有 bats 測試，從骨架升級為 35 個真實函式驗證測試
 - tests/test_helper.bash：加入 stub log 函式與健壯的模組載入器
+- scripts/setup_ghidra.sh：GitHub API 呼叫加入指數退避重試（最多 3 次），支援 rate limit 偵測
+- scripts/setup_mcp.sh：插件掛載後新增 ZIP 檔案驗證，失敗時回傳非零 exit code
 
 ### Fixed
 - scripts/setup_ghidra.sh：移除 DOWNLOAD_DIR readonly 避免測試重載衝突
 - scripts/setup_mcp.sh：移除模組常數 readonly 並加入預設值，增強測試相容性
+- install.sh：修復 SC2155（SCRIPT_DIR 宣告與賦值分離）、SC2034（VERBOSE 加 export）
+- scripts/setup_mcp.sh：修復 SC2162（所有 read 指令加入 -r 旗標）
 - docs/architecture.md：系統架構文件（Mermaid 架構圖 + 資料流序列圖）
 - Makefile：調整為 Bash 腳本專案（build=語法檢查、test=bats、lint=shellcheck）

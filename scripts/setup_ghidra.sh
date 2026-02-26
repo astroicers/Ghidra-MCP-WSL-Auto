@@ -13,12 +13,41 @@ setup_ghidra_fetch_version() {
 
     log_info "從 GitHub API 取得最新版本..."
 
-    local release_json
-    release_json=$(curl -sL --fail "$GHIDRA_GITHUB_API" 2>/dev/null) || {
-        log_error "GitHub API 呼叫失敗（可能是 rate limit 或網路問題）"
+    local release_json=""
+    local max_retries=3
+    local retry_delay=2
+    local attempt
+
+    for attempt in $(seq 1 "$max_retries"); do
+        local http_code
+        http_code=$(curl -sL -o /tmp/ghidra_api_response.json -w "%{http_code}" "$GHIDRA_GITHUB_API" 2>/dev/null) || http_code="000"
+
+        if [[ "$http_code" == "200" ]]; then
+            release_json=$(cat /tmp/ghidra_api_response.json)
+            rm -f /tmp/ghidra_api_response.json
+            break
+        elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+            log_warn "GitHub API rate limit (HTTP ${http_code})，第 ${attempt}/${max_retries} 次重試..."
+            if [[ "$attempt" -lt "$max_retries" ]]; then
+                sleep "$retry_delay"
+                retry_delay=$(( retry_delay * 2 ))
+            fi
+        else
+            log_warn "GitHub API 回應異常 (HTTP ${http_code})，第 ${attempt}/${max_retries} 次重試..."
+            if [[ "$attempt" -lt "$max_retries" ]]; then
+                sleep "$retry_delay"
+                retry_delay=$(( retry_delay * 2 ))
+            fi
+        fi
+    done
+
+    rm -f /tmp/ghidra_api_response.json
+
+    if [[ -z "$release_json" ]]; then
+        log_error "GitHub API 呼叫失敗（已重試 ${max_retries} 次）"
         log_error "請手動指定版本: sudo GHIDRA_VERSION=11.3.1 ./install.sh"
         exit 20
-    }
+    fi
 
     GHIDRA_DOWNLOAD_URL=$(echo "$release_json" | jq -r \
         '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -1)
