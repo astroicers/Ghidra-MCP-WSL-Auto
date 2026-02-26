@@ -72,6 +72,67 @@ teardown() {
     grep -q "MCP_SERVER_PORT" "$env_file"
 }
 
+# ── Plugin extraction (double-layer ZIP) ──
+
+@test "_extract_ghidramcp_plugin: extracts inner ZIP from release wrapper" {
+    load_module setup_mcp
+    local work_dir="/tmp/test-extract-plugin"
+    local ext_dir="${work_dir}/Extensions"
+    mkdir -p "$ext_dir" "${work_dir}/inner/GhidraMCP/lib"
+
+    # 建立模擬的內層 ZIP（含 extension.properties）
+    echo "name=GhidraMCP" > "${work_dir}/inner/GhidraMCP/extension.properties"
+    echo "manifest" > "${work_dir}/inner/GhidraMCP/Module.manifest"
+    echo "jar" > "${work_dir}/inner/GhidraMCP/lib/GhidraMCP.jar"
+    (cd "${work_dir}/inner" && zip -q -r "${work_dir}/GhidraMCP-1-4.zip" GhidraMCP/)
+
+    # 建立模擬的外層 ZIP（含 bridge + 內層 ZIP）
+    mkdir -p "${work_dir}/outer/GhidraMCP-release-1-4"
+    echo "bridge" > "${work_dir}/outer/GhidraMCP-release-1-4/bridge_mcp_ghidra.py"
+    cp "${work_dir}/GhidraMCP-1-4.zip" "${work_dir}/outer/GhidraMCP-release-1-4/"
+    (cd "${work_dir}/outer" && zip -q -r "${work_dir}/release.zip" GhidraMCP-release-1-4/)
+
+    # 測試解包
+    run _extract_ghidramcp_plugin "${work_dir}/release.zip" "$ext_dir"
+    [ "$status" -eq 0 ]
+
+    # 驗證 extension.properties 被正確解壓
+    [ -f "${ext_dir}/GhidraMCP/extension.properties" ]
+    grep -q "name=GhidraMCP" "${ext_dir}/GhidraMCP/extension.properties"
+    [ -f "${ext_dir}/GhidraMCP/lib/GhidraMCP.jar" ]
+
+    rm -rf "$work_dir"
+}
+
+@test "_extract_ghidramcp_plugin: directly extracts inner-format ZIP" {
+    load_module setup_mcp
+    local work_dir="/tmp/test-extract-direct"
+    local ext_dir="${work_dir}/Extensions"
+    mkdir -p "$ext_dir" "${work_dir}/GhidraMCP/lib"
+
+    # 建立模擬的內層 ZIP（直接含 extension.properties）
+    echo "name=GhidraMCP" > "${work_dir}/GhidraMCP/extension.properties"
+    echo "jar" > "${work_dir}/GhidraMCP/lib/GhidraMCP.jar"
+    (cd "$work_dir" && zip -q -r "${work_dir}/inner.zip" GhidraMCP/)
+
+    run _extract_ghidramcp_plugin "${work_dir}/inner.zip" "$ext_dir"
+    [ "$status" -eq 0 ]
+    [ -f "${ext_dir}/GhidraMCP/extension.properties" ]
+
+    rm -rf "$work_dir"
+}
+
+@test "setup_mcp_mount_extension: skips when already installed" {
+    load_module setup_mcp
+    local ext_dir="${INSTALL_DIR}/Ghidra/Extensions"
+    mkdir -p "${ext_dir}/GhidraMCP"
+    echo "name=GhidraMCP" > "${ext_dir}/GhidraMCP/extension.properties"
+
+    run setup_mcp_mount_extension
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"已安裝"* ]] || [[ "$output" == *"SKIP"* ]]
+}
+
 # ── Launcher ──
 
 @test "setup_mcp_create_launcher: generates executable script" {

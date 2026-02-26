@@ -74,6 +74,42 @@ setup_mcp_install_deps() {
     deactivate 2>/dev/null || true
 }
 
+# ── 解包 GhidraMCP 插件 ZIP（處理雙層包裝） ──
+_extract_ghidramcp_plugin() {
+    local zip_file="$1" target_dir="$2"
+
+    # 檢查 ZIP 內是否直接包含 extension.properties（內層 ZIP 格式）
+    if unzip -l "$zip_file" 2>/dev/null | grep -q "extension.properties"; then
+        log_info "解壓插件至 ${target_dir}..."
+        unzip -q -o "$zip_file" -d "$target_dir"
+        return $?
+    fi
+
+    # 外層格式：提取內層插件 ZIP（basename 不含 release）
+    log_info "偵測到 Release 包裝，解壓內層插件..."
+    local inner_zip
+    inner_zip=$(unzip -l "$zip_file" 2>/dev/null \
+        | grep -oP '\S+\.zip' | while read -r f; do
+            local base
+            base=$(basename "$f")
+            if [[ "$base" == *"GhidraMCP"* && "$base" != *"release"* ]]; then
+                echo "$f"
+            fi
+        done | head -1)
+
+    if [[ -n "$inner_zip" ]]; then
+        unzip -q -o "$zip_file" "$inner_zip" -d /tmp/
+        local inner_path="/tmp/${inner_zip}"
+        unzip -q -o "$inner_path" -d "$target_dir"
+        rm -f "$inner_path"
+        return 0
+    fi
+
+    # 無法識別結構，嘗試直接解壓
+    log_warn "無法辨識 ZIP 結構，嘗試直接解壓..."
+    unzip -q -o "$zip_file" -d "$target_dir"
+}
+
 # ── 掛載插件 ──
 setup_mcp_mount_extension() {
     # 動態偵測 Ghidra Extensions 路徑
@@ -81,48 +117,54 @@ setup_mcp_mount_extension() {
     ext_dir=$(find "$INSTALL_DIR" -path "*/Ghidra/Extensions" -type d 2>/dev/null | head -1)
 
     if [[ -z "$ext_dir" ]]; then
-        # Fallback: 嘗試常見路徑
         ext_dir="${INSTALL_DIR}/Ghidra/Extensions"
         mkdir -p "$ext_dir"
     fi
 
-    # 尋找預編譯的插件 ZIP
+    # 冪等：已安裝則跳過
+    if [[ -f "${ext_dir}/GhidraMCP/extension.properties" ]]; then
+        log_skip "GhidraMCP 插件已安裝於 ${ext_dir}/GhidraMCP"
+        return 0
+    fi
+
+    # 尋找本地預編譯 ZIP
     local extension_zip
     extension_zip=$(find "$MCP_PATH" -name "ghidra_*.zip" -o -name "GhidraMCP*.zip" 2>/dev/null | head -1)
 
-    if [[ -n "$extension_zip" ]]; then
-        ln -sf "$extension_zip" "${ext_dir}/"
-        log_ok "插件已掛載: $(basename "$extension_zip") → ${ext_dir}"
-    else
-        # 嘗試從 GitHub Release 下載
+    if [[ -z "$extension_zip" ]]; then
+        # 從 GitHub Release 下載
         log_warn "未找到預編譯插件，嘗試從 GitHub Release 下載..."
         local mcp_release_url
         mcp_release_url=$(curl -sL "https://api.github.com/repos/LaurieWired/GhidraMCP/releases/latest" 2>/dev/null \
             | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' 2>/dev/null | head -1)
 
         if [[ -n "$mcp_release_url" && "$mcp_release_url" != "null" ]]; then
-            local zip_name
-            zip_name=$(basename "$mcp_release_url")
-            if wget -q -O "${ext_dir}/${zip_name}" "$mcp_release_url"; then
-                log_ok "插件已下載並掛載: ${zip_name}"
-            else
+            extension_zip="/tmp/ghidramcp_release.zip"
+            if ! wget -q -O "$extension_zip" "$mcp_release_url"; then
                 log_warn "插件下載失敗，請手動安裝"
                 log_warn "下載位址: ${mcp_release_url}"
+                rm -f "$extension_zip"
                 return 1
             fi
+            log_ok "插件已下載: $(basename "$mcp_release_url")"
         else
             log_warn "無法找到預編譯插件，請參考 GhidraMCP README 手動編譯"
             return 1
         fi
     fi
 
+    # 解包插件（自動處理雙層 ZIP）
+    _extract_ghidramcp_plugin "$extension_zip" "$ext_dir"
+
+    # 清理暫存
+    rm -f /tmp/ghidramcp_release.zip
+
     # ── 掛載後驗證 ──
-    local mounted_count
-    mounted_count=$(find "$ext_dir" -name "*.zip" 2>/dev/null | wc -l)
-    if [[ "$mounted_count" -gt 0 ]]; then
-        log_ok "插件掛載驗證通過: ${ext_dir} 中有 ${mounted_count} 個 ZIP 插件"
+    if [[ -f "${ext_dir}/GhidraMCP/extension.properties" ]]; then
+        log_ok "GhidraMCP 插件安裝驗證通過: ${ext_dir}/GhidraMCP"
     else
-        log_warn "插件掛載驗證失敗: ${ext_dir} 中未找到 ZIP 插件"
+        log_warn "插件安裝驗證失敗: 未找到 extension.properties"
+        log_warn "請手動安裝: Ghidra → File → Install Extensions → 選擇 ZIP"
         return 1
     fi
 }
