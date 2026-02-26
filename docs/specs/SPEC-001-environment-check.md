@@ -118,7 +118,7 @@ done
 
 - 不要支援非 apt 系統（dnf/yum/pacman）
 - 不要安裝 Ghidra 或 MCP（屬於 SPEC-002/003）
-- 不要處理 API Key（屬於 SPEC-003）
+- 不要處理 MCP 連接模式設定（屬於 SPEC-003）
 
 ---
 

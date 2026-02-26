@@ -31,7 +31,7 @@ graph TD
     SG -->|解壓| OPT[/opt/ghidra/]
     SM -->|git clone| MCP[(GitHub<br/>LaurieWired<br/>/GhidraMCP)]
     SM -->|python3 -m venv| VENV[/opt/ghidra-mcp/<br/>GhidraMCP/.venv/]
-    SM -->|read -s| ENV[.env<br/>API Key 安全儲存]
+    SM -->|互動選擇| ENV[.env<br/>MCP 連接模式設定]
 
     BIN -->|啟動| OPT
     BIN -->|啟動| VENV
@@ -46,9 +46,9 @@ graph TD
 | 主腳本 | install.sh | 流程編排、CLI 參數解析、日誌系統 | F1~F4 |
 | 環境檢測 | scripts/check_env.sh | WSL2 驗證、apt 依賴安裝、JDK/Python 檢查 | F1 |
 | Ghidra 安裝 | scripts/setup_ghidra.sh | 版本取得、下載、解壓、JVM 記憶體調校 | F2 |
-| MCP 配置 | scripts/setup_mcp.sh | Clone 儲存庫、venv 建置、插件掛載、API Key 設定 | F3 |
+| MCP 配置 | scripts/setup_mcp.sh | Clone 儲存庫、venv 建置、插件掛載、MCP 連接模式設定 | F3 |
 | 啟動器 | bin/ghidra-mcp | 一鍵啟動 Ghidra + MCP Bridge | F4 |
-| 環境模板 | config/.env.template | API Key 與 MCP 設定範本 | F3 |
+| 環境模板 | config/.env.template | MCP 連接模式與伺服器設定範本 | F3 |
 | 桌面捷徑 | config/ghidra.desktop | Linux 桌面快捷方式 | F4 |
 
 ---
@@ -86,8 +86,8 @@ sequenceDiagram
     M->>SM: source + setup_mcp_run_all()
     SM->>GH: git clone GhidraMCP
     SM->>FS: python3 -m venv + pip install
-    SM->>U: 互動式 API Key 輸入 (read -s)
-    SM->>FS: 寫入 .env (chmod 600)
+    SM->>U: 互動式 MCP 連接模式選擇
+    SM->>FS: 寫入 .env (依模式)
     SM->>FS: 掛載插件至 Ghidra Extensions/
     SM->>FS: 建立 bin/ghidra-mcp 啟動器
     SM-->>M: return 0 (成功)
@@ -114,25 +114,25 @@ sequenceDiagram
 
 ## 安全邊界
 
-> **API Key 保護流程：**
-> 1. 互動輸入：`read -s`（不回顯至終端）
-> 2. 儲存：`.env` 檔案，權限 `chmod 600`，擁有者 `$SUDO_USER`
-> 3. 日誌遮罩：`sanitize_log()` 函式過濾所有形如 `sk-*` / `anthropic-*` 的字串
-> 4. 版控排除：`.gitignore` 包含 `.env` 和 `*.log`
+> **MCP 連接模式：**
+> - **CLI 模式**：不儲存任何認證資訊，認證由 Claude Code 自行管理
+> - **API Key 模式**：API Key 安全存儲於 `.env`（chmod 600），日誌遮罩 `sanitize_log()` 過濾敏感字串
+> - 版控排除：`.gitignore` 包含 `.env` 和 `*.log`
 >
 > **檔案權限模型：**
 > | 路徑 | 擁有者 | 權限 |
 > |------|--------|------|
 > | /opt/ghidra/ | root:root | 755 |
 > | /opt/ghidra-mcp/ | root:root | 755 |
-> | .env (API Key) | $USER:$USER | 600 |
+> | .env (CLI 模式) | $USER:$USER | 644 |
+> | .env (API Key 模式) | $USER:$USER | 600 |
 > | install.log | root:root | 644 |
 
 ---
 
 ## 已知技術債
 
-- [x] bats-core 測試框架已建立，35 個真實函式驗證測試（非骨架）
+- [x] bats-core 測試框架已建立，38 個真實函式驗證測試（非骨架）
 - [ ] GitHub API 未認證限制 60 req/hr，未實作 rate limit 重試
 - [ ] 不支援 proxy 環境下的安裝
 - [ ] 不支援 WSL1（缺少完整 Linux kernel）

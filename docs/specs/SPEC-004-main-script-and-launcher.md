@@ -26,7 +26,7 @@
 | --verbose / -v | flag | CLI | 啟用詳細輸出 |
 | --skip-update | flag | CLI | 跳過 apt update/upgrade |
 | --ghidra-version \<ver\> | string | CLI | 指定 Ghidra 版本 |
-| --no-interactive | flag | CLI | 跳過互動式 API Key 設定 |
+| --no-interactive | flag | CLI | 跳過互動式連接模式設定 |
 | --uninstall | flag | CLI | 移除已安裝的元件 |
 
 ---

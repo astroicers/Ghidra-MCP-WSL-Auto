@@ -14,7 +14,7 @@
 
 ## 目標（Goal）
 
-> Clone GhidraMCP 儲存庫，建立隔離的 Python venv 環境安裝 MCP 依賴，將插件掛載至 Ghidra 擴充路徑，並透過互動式引導設定 LLM API Key。
+> Clone GhidraMCP 儲存庫，建立隔離的 Python venv 環境安裝 MCP 依賴，將插件掛載至 Ghidra 擴充路徑，並透過互動式引導設定 MCP 連接模式（Claude Code CLI 或 API Key）。
 
 ---
 
@@ -24,7 +24,7 @@
 |----------|------|------|----------|
 | MCP_DIR | string (env) | env | 可選，預設 /opt/ghidra-mcp |
 | INSTALL_DIR | string (env) | env | 可選，預設 /opt/ghidra (Ghidra 安裝路徑) |
-| NO_INTERACTIVE | bool (env) | CLI --no-interactive | 可選，跳過 API Key 設定 |
+| NO_INTERACTIVE | bool (env) | CLI --no-interactive | 可選，跳過連接模式設定 |
 
 ---
 
@@ -34,7 +34,7 @@
 - /opt/ghidra-mcp/GhidraMCP/ 為有效 git repo
 - /opt/ghidra-mcp/GhidraMCP/.venv/ 已建立且含 MCP SDK
 - Ghidra Extensions/ 目錄下已掛載 MCP 插件
-- .env 檔案已建立（chmod 600）含 API Key（若互動式模式）
+- .env 檔案已建立，含 MCP 連接模式設定（CLI 模式 chmod 644 / API Key 模式 chmod 600）
 
 **失敗情境：**
 
@@ -56,7 +56,7 @@ setup_mcp_clone_repo()        # git clone 或 git pull (冪等)
 setup_mcp_create_venv()       # python3 -m venv 建置
 setup_mcp_install_deps()      # pip install -r requirements.txt
 setup_mcp_mount_extension()   # 掛載 .zip 至 Ghidra Extensions/
-setup_mcp_configure_api()     # 互動式 API Key 設定
+setup_mcp_configure_connection()  # 互動式 MCP 連接模式設定
 setup_mcp_create_launcher()   # 建立 bin/ghidra-mcp 啟動器
 setup_mcp_run_all()           # 依序呼叫上述所有步驟
 ```
@@ -79,34 +79,21 @@ else
 fi
 ```
 
-### API Key 互動設定
+### MCP 連接模式設定
 
 ```bash
-setup_mcp_configure_api() {
-    [[ "${NO_INTERACTIVE:-false}" == "true" ]] && { log_skip "互動模式已停用"; return 0; }
+setup_mcp_configure_connection() {
+    [[ "${NO_INTERACTIVE:-false}" == "true" ]] && { _setup_mcp_create_env_template; return 0; }
 
-    echo "請選擇 LLM 提供者："
-    echo "  1) OpenAI"
-    echo "  2) Anthropic"
-    echo "  3) 自訂"
-    read -p "選擇 [1-3]: " provider_choice
+    echo "請選擇 MCP 連接模式："
+    echo "  1) Claude Code CLI（推薦）"
+    echo "  2) API Key（OpenAI / Anthropic / 自訂）"
+    read -r -p "選擇 [1-2] (預設: 1): " mode_choice
 
-    read -s -p "請輸入 API Key: " api_key
-    echo ""
-
-    # 格式驗證 (基本檢查)
-    # OpenAI: sk-* / Anthropic: sk-ant-*
-
-    cat > "${MCP_PATH}/.env" <<EOF
-# Ghidra-MCP-WSL-Auto 自動產生
-# 請勿將此檔案加入版本控制
-LLM_PROVIDER=${provider}
-LLM_API_KEY=${api_key}
-MCP_SERVER_PORT=8080
-EOF
-
-    chmod 600 "${MCP_PATH}/.env"
-    chown "${SUDO_USER}:${SUDO_USER}" "${MCP_PATH}/.env"
+    case "${mode_choice:-1}" in
+        2) _setup_mcp_configure_api_key ;;   # API Key 互動設定
+        *) _setup_mcp_configure_cli_mode ;;  # CLI 模式，建立基本 .env
+    esac
 }
 ```
 
@@ -130,8 +117,8 @@ ln -sf "${MCP_PATH}/dist/"*.zip "$EXTENSION_DIR/"
 ## 邊界條件（Edge Cases）
 
 - Case 1：GhidraMCP 上游 requirements.txt 變更 → venv 存在時仍執行 pip install（更新依賴）
-- Case 2：使用者輸入無效 API Key 格式 → 警告但不阻止（可能是自訂 provider）
-- Case 3：--no-interactive 模式 → 跳過 API Key 設定，提示使用者後續手動編輯 .env
+- Case 2：選擇 CLI 模式 → 跳過 API Key，建立含 MCP_MODE=cli 和 MCP_SERVER_PORT 的 .env
+- Case 3：--no-interactive 模式 → 跳過連接模式設定，建立預設模板
 - Case 4：Ghidra Extensions 路徑在不同版本可能不同 → 動態偵測 `find $INSTALL_DIR -name Extensions -type d`
 - Case 5：.env 已存在 → 提示是否覆寫，預設保留現有設定
 
@@ -143,16 +130,16 @@ ln -sf "${MCP_PATH}/dist/"*.zip "$EXTENSION_DIR/"
 - [ ] `make test-filter FILTER=setup_mcp` 全數通過
 - [ ] `make lint` 無 shellcheck error
 - [ ] venv 環境可成功 `import mcp`（或對應 SDK）
-- [ ] .env 檔案權限為 600，不被 git 追蹤
+- [ ] .env 檔案權限正確（CLI 模式 644 / API Key 模式 600），不被 git 追蹤
 - [ ] 重複執行時 clone 步驟顯示 [SKIP]，執行 git pull
-- [ ] --no-interactive 模式正確跳過 API Key 設定
+- [ ] --no-interactive 模式正確跳過連接模式設定
 
 ---
 
 ## 禁止事項（Out of Scope）
 
 - 不要修改 Ghidra 核心檔案
-- 不要在 .env 以外的位置儲存 API Key
+- 不要在 .env 以外的位置儲存 API Key（若使用 API Key 模式）
 - 不要安裝 Gradle 或從原始碼編譯插件（v1.0 使用預編譯版本）
 
 ---

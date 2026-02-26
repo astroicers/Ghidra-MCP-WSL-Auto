@@ -120,7 +120,7 @@ XMX_MB=$(( XMX_MB > 16384 ? 16384 : XMX_MB ))  # 上限 16GB
 ## 禁止事項（Out of Scope）
 
 - 不要安裝 GhidraMCP 插件（屬於 SPEC-003）
-- 不要處理 API Key（屬於 SPEC-003）
+- 不要處理 MCP 連接模式設定（屬於 SPEC-003）
 - 不要支援 Ghidra headless-only 模式
 - 不要建立 Gradle 編譯環境
 

@@ -11,7 +11,7 @@
 * **宿主作業系統**: Windows 10 (22H2+) 或 Windows 11。
 * **虛擬化環境**: WSL 2 (建議 Ubuntu 22.04 LTS 或更新版本)。
 * **硬體建議**:
-* RAM: 至少 8GB (建議 16GB+ 以支撐 Ghidra 與 大型 LLM 交互)。
+* RAM: 至少 8GB (建議 16GB+)。
 * Disk: 至少 5GB 剩餘空間。
 
 
@@ -42,7 +42,7 @@
 * **自動拉取**: Clone `LaurieWired/GhidraMCP` 倉庫。
 * **虛擬環境建置**: 在插件目錄下建立獨立的 `venv`，避免系統庫汙染。
 * **自動掛載**: 將編譯好的插件 (Extension) 軟連結或複製到 Ghidra 的擴充路徑。
-* **API 配置引導**: 互動式引導使用者輸入 LLM API Key (OpenAI/Anthropic)，並安全存儲於 `.env`。
+* **MCP 連接模式**: 支援 Claude Code CLI（推薦）和 API Key 兩種模式，互動式引導設定。
 
 ### F4: 啟動與整合優化
 
@@ -60,7 +60,7 @@
 
 
 * **透明度**: 提供詳細的安裝日誌 (`install.log`)。
-* **安全性**: API Key 不得明文出現在腳本或日誌中。
+* **安全性**: API Key（若使用 API Key 模式）不得明文出現在腳本或日誌中。
 
 ---
 
@@ -78,7 +78,7 @@ Ghidra-MCP-WSL-Auto/
 │   ├── setup_ghidra.sh        #   F2: Ghidra 安裝邏輯
 │   └── setup_mcp.sh           #   F3: MCP 插件配置
 ├── config/                    # 模板文件
-│   ├── .env.template          #   API Key 模板
+│   ├── .env.template          #   MCP 連接模式設定模板
 │   └── ghidra.desktop         #   Linux 桌面快捷方式模板
 ├── bin/                       # 啟動器（install 時自動產生）
 ├── tests/                     # bats 測試

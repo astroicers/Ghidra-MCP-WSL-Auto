@@ -50,14 +50,14 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
-# ── API Key security ──
+# ── MCP connection mode ──
 
-@test "setup_mcp_configure_api: non-interactive creates template with 600 perms" {
+@test "setup_mcp_configure_connection: non-interactive creates env template with 644 perms" {
     load_module setup_mcp
     export NO_INTERACTIVE=true
     mkdir -p "${MCP_DIR}/GhidraMCP"
 
-    run setup_mcp_configure_api
+    run setup_mcp_configure_connection
     [ "$status" -eq 0 ]
 
     local env_file="${MCP_DIR}/GhidraMCP/.env"
@@ -65,10 +65,9 @@ teardown() {
 
     local perms
     perms=$(stat -c %a "$env_file")
-    [ "$perms" = "600" ]
+    [ "$perms" = "644" ]
 
-    grep -q "LLM_PROVIDER" "$env_file"
-    grep -q "LLM_API_KEY" "$env_file"
+    grep -q "MCP_MODE" "$env_file"
     grep -q "MCP_SERVER_PORT" "$env_file"
 }
 

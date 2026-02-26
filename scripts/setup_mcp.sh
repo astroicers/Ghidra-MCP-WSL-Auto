@@ -169,37 +169,53 @@ setup_mcp_mount_extension() {
     fi
 }
 
-# ── API Key 設定 ──
-setup_mcp_configure_api() {
+# ── MCP 連接模式設定 ──
+setup_mcp_configure_connection() {
     if [[ "${NO_INTERACTIVE:-false}" == "true" ]]; then
         log_skip "互動模式已停用 (--no-interactive)"
-        log_info "請手動編輯 API Key: ${MCP_ENV_FILE}"
-        # 建立模板
-        if [[ ! -f "$MCP_ENV_FILE" ]]; then
-            cp "${SCRIPT_DIR}/config/.env.template" "$MCP_ENV_FILE" 2>/dev/null || {
-                cat > "$MCP_ENV_FILE" <<'ENVEOF'
-# Ghidra-MCP-WSL-Auto 自動產生
-# 請勿將此檔案加入版本控制
-LLM_PROVIDER=openai
-LLM_API_KEY=
-MCP_SERVER_PORT=8080
-ENVEOF
-            }
-            chmod 600 "$MCP_ENV_FILE"
-            chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$MCP_ENV_FILE"
-        fi
+        _setup_mcp_create_env_template
         return 0
     fi
 
-    # 若已存在 .env 且有 API Key，詢問是否覆寫
-    if [[ -f "$MCP_ENV_FILE" ]] && grep -q "LLM_API_KEY=." "$MCP_ENV_FILE"; then
-        log_skip "API Key 已設定 (${MCP_ENV_FILE})"
-        read -r -p "是否重新設定 API Key? [y/N]: " overwrite
-        if [[ ! "$overwrite" =~ ^[Yy]$ ]]; then
-            return 0
-        fi
+    # 若已存在 .env 且有設定，詢問是否重新設定
+    if [[ -f "$MCP_ENV_FILE" ]] && grep -qE "(MCP_MODE=|LLM_API_KEY=.)" "$MCP_ENV_FILE"; then
+        log_skip "MCP 連接已設定 (${MCP_ENV_FILE})"
+        read -r -p "是否重新設定連接模式? [y/N]: " overwrite
+        [[ ! "$overwrite" =~ ^[Yy]$ ]] && return 0
     fi
 
+    echo ""
+    echo "  請選擇 MCP 連接模式："
+    echo "    1) Claude Code CLI（推薦）"
+    echo "    2) API Key（OpenAI / Anthropic / 自訂）"
+    echo ""
+
+    local mode_choice
+    read -r -p "  選擇 [1-2] (預設: 1): " mode_choice
+
+    case "${mode_choice:-1}" in
+        2) _setup_mcp_configure_api_key ;;
+        *) _setup_mcp_configure_cli_mode ;;
+    esac
+}
+
+_setup_mcp_configure_cli_mode() {
+    cat > "$MCP_ENV_FILE" <<'EOF'
+# Ghidra-MCP-WSL-Auto 自動產生
+MCP_MODE=cli
+MCP_SERVER_PORT=8080
+EOF
+    chmod 644 "$MCP_ENV_FILE"
+    log_ok "已選擇 Claude Code CLI 模式"
+    echo ""
+    echo "  下一步：在 WSL 中安裝 Claude Code"
+    echo "    npm install -g @anthropic-ai/claude-code"
+    echo ""
+    echo "  啟動後執行 'claude mcp add ghidra http://127.0.0.1:8080/sse'"
+    echo ""
+}
+
+_setup_mcp_configure_api_key() {
     echo ""
     echo "  請選擇 LLM 提供者："
     echo "    1) OpenAI"
@@ -228,6 +244,7 @@ ENVEOF
     cat > "$MCP_ENV_FILE" <<EOF
 # Ghidra-MCP-WSL-Auto 自動產生
 # 請勿將此檔案加入版本控制
+MCP_MODE=apikey
 LLM_PROVIDER=${provider}
 LLM_API_KEY=${api_key}
 MCP_SERVER_PORT=8080
@@ -237,6 +254,20 @@ EOF
     chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$MCP_ENV_FILE"
 
     log_ok "API Key 已設定 (提供者: ${provider})"
+}
+
+_setup_mcp_create_env_template() {
+    log_info "請手動編輯連接模式: ${MCP_ENV_FILE}"
+    if [[ ! -f "$MCP_ENV_FILE" ]]; then
+        cp "${SCRIPT_DIR}/config/.env.template" "$MCP_ENV_FILE" 2>/dev/null || {
+            cat > "$MCP_ENV_FILE" <<'ENVEOF'
+# Ghidra-MCP-WSL-Auto 自動產生
+MCP_MODE=cli
+MCP_SERVER_PORT=8080
+ENVEOF
+        }
+        chmod 644 "$MCP_ENV_FILE"
+    fi
 }
 
 # ── 建立啟動器 ──
@@ -319,7 +350,7 @@ setup_mcp_run_all() {
     setup_mcp_create_venv
     setup_mcp_install_deps
     setup_mcp_mount_extension
-    setup_mcp_configure_api
+    setup_mcp_configure_connection
     setup_mcp_create_launcher
 
     log_ok "=== F3: GhidraMCP 插件整合完成 ==="

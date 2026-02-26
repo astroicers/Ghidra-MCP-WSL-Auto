@@ -68,7 +68,7 @@ print_usage() {
   -v, --verbose         啟用詳細輸出
       --skip-update     跳過 apt update/upgrade
       --ghidra-version  指定 Ghidra 版本 (例: 11.3.1)
-      --no-interactive  跳過互動式 API Key 設定
+      --no-interactive  跳過互動式連接模式設定
       --uninstall       移除已安裝的元件
 
 環境變數覆寫：
