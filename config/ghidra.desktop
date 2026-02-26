@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ghidra
+Comment=Ghidra Software Reverse Engineering Suite
+Exec=/opt/ghidra/ghidraRun
+Icon=/opt/ghidra/docs/images/GHIDRA_1.png
+Terminal=false
+Categories=Development;Debugger;ReverseEngineering;
