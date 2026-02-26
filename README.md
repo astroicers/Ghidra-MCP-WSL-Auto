@@ -1,6 +1,17 @@
 # Ghidra-MCP-WSL-Auto
 
-一鍵部署 **Ghidra** 逆向工程平台及 **GhidraMCP** (Model Context Protocol) 插件於 **WSL2 Ubuntu/Debian** 環境。
+一鍵部署 **Ghidra** 逆向工程平台及 **[GhidraMCP](https://github.com/LaurieWired/GhidraMCP)** (Model Context Protocol) 插件於 **WSL2 Ubuntu/Debian** 環境。
+
+## 功能特色
+
+- 自動偵測 WSL2 環境、安裝 OpenJDK 21 及所有系統依賴
+- 從 GitHub Release 自動下載最新版 Ghidra（支援斷點續傳）
+- 自動安裝 GhidraMCP 插件（處理雙層 ZIP 解包）
+- 建立 Python venv 隔離環境安裝 MCP SDK
+- 互動式 LLM API Key 設定（支援 OpenAI / Anthropic / 自訂）
+- 一鍵啟動器 `ghidra-mcp`（同時啟動 Ghidra + MCP Bridge）
+- 冪等設計：重複執行安全，已完成步驟自動跳過
+- GitHub API rate limit 自動重試（指數退避，最多 3 次）
 
 ## 快速開始
 
@@ -16,6 +27,14 @@ sudo ./install.sh
 source /etc/profile.d/ghidra.sh
 ghidra-mcp    # 啟動 Ghidra + MCP Bridge
 ```
+
+首次啟動 Ghidra 後，需啟用 GhidraMCP 插件：
+
+1. **File** → **Configure** → **Developer**
+2. 勾選 **GhidraMCPPlugin**
+3. 重啟 Ghidra
+
+啟用後，MCP HTTP Server 會在 `http://127.0.0.1:8080` 自動運行。
 
 ## 系統需求
 
@@ -37,6 +56,18 @@ sudo GHIDRA_XMX=8192 ./install.sh           # 指定 JVM 記憶體 (MB)
 sudo ./install.sh --uninstall               # 移除所有已安裝元件
 ```
 
+## LLM API Key 設定
+
+安裝過程中會提示您選擇 LLM 提供者並輸入 API Key，請先至對應平台申請：
+
+| 提供者 | API Key 管理 | SDK 快速入門 |
+|--------|-------------|-------------|
+| OpenAI | [API Keys](https://platform.openai.com/api-keys) | [Quickstart](https://developers.openai.com/api/docs/quickstart) |
+| Anthropic (Claude) | [API Keys](https://console.anthropic.com/settings/keys) | [Getting Started](https://docs.anthropic.com/en/api/getting-started) |
+| Google (Gemini) | [API Keys](https://aistudio.google.com/apikey) | [Quickstart](https://ai.google.dev/gemini-api/docs/quickstart) |
+
+> 使用 `--no-interactive` 可跳過互動設定，之後手動編輯 `/opt/ghidra-mcp/GhidraMCP/.env` 填入 Key。
+
 ## 專案結構
 
 ```
@@ -50,7 +81,7 @@ Ghidra-MCP-WSL-Auto/
 │   ├── .env.template          #   API Key 設定模板
 │   └── ghidra.desktop         #   Linux 桌面快捷方式
 ├── bin/                       # 啟動器（install 時自動產生）
-├── tests/                     # bats 測試
+├── tests/                     # bats 測試（38 個驗證案例）
 │   ├── test_helper.bash
 │   ├── check_env.bats
 │   ├── install.bats
