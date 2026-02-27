@@ -153,6 +153,8 @@ teardown() {
     grep -q "\-\-transport sse" "$launcher"
     grep -q "\-\-mcp-port" "$launcher"
     grep -q "GHIDRA_PLUGIN_PORT" "$launcher"
+    grep -q "_patch_ghidra_plugin_port" "$launcher"
+    grep -q "_code_browser.tcd" "$launcher"
 
     rm -f "$launcher"
 }

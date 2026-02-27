@@ -61,6 +61,8 @@ setup_ghidra_fetch_version() {
     GHIDRA_VERSION=$(echo "$release_json" | jq -r '.tag_name' | sed 's/Ghidra_//; s/_PUBLIC//')
 
     log_ok "偵測到最新版本: Ghidra ${GHIDRA_VERSION}"
+    log_warn "GhidraMCP 插件目前已知支援 Ghidra 11.3.2，其他版本可能有相容性問題"
+    log_warn "如遇問題，請用 GHIDRA_VERSION=11.3.2 重新安裝"
 }
 
 # ── 下載 ──

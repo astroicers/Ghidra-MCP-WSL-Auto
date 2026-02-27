@@ -203,7 +203,7 @@ _setup_mcp_configure_cli_mode() {
     cat > "$MCP_ENV_FILE" <<'EOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
-GHIDRA_PLUGIN_PORT=18080
+GHIDRA_PLUGIN_PORT=60005
 MCP_SERVER_PORT=60006
 EOF
     chmod 644 "$MCP_ENV_FILE"
@@ -248,7 +248,7 @@ _setup_mcp_configure_api_key() {
 MCP_MODE=apikey
 LLM_PROVIDER=${provider}
 LLM_API_KEY=${api_key}
-GHIDRA_PLUGIN_PORT=18080
+GHIDRA_PLUGIN_PORT=60005
 MCP_SERVER_PORT=60006
 EOF
 
@@ -265,7 +265,7 @@ _setup_mcp_create_env_template() {
             cat > "$MCP_ENV_FILE" <<'ENVEOF'
 # Ghidra-MCP-WSL-Auto 自動產生
 MCP_MODE=cli
-GHIDRA_PLUGIN_PORT=18080
+GHIDRA_PLUGIN_PORT=60005
 MCP_SERVER_PORT=60006
 ENVEOF
         }
@@ -304,7 +304,49 @@ fi
 
 # Port 設定
 MCP_PORT="${MCP_SERVER_PORT:-60006}"
-GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-18080}"
+GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-60005}"
+
+# ── 自動 patch Ghidra 插件 port ──
+_patch_ghidra_plugin_port() {
+    local ghidra_ver tcd_file
+    ghidra_ver=$(basename "$INSTALL_DIR" | sed 's/ghidra_//; s/_PUBLIC//')
+    # 支援 ~/.config/ghidra/ 和 ~/.ghidra/ 兩種路徑
+    for config_base in "${HOME}/.config/ghidra" "${HOME}/.ghidra"; do
+        tcd_file="${config_base}/ghidra_${ghidra_ver}_PUBLIC/tools/_code_browser.tcd"
+        [[ -f "$tcd_file" ]] && break
+    done
+
+    if [[ ! -f "$tcd_file" ]]; then
+        echo "[INFO] Ghidra tool config 尚不存在（首次啟動後會產生）"
+        echo "[INFO] 首次啟動後請手動設定插件 port:"
+        echo "       Edit → Tool Options → GhidraMCP HTTP Server → Server Port: ${GHIDRA_PORT}"
+        return 1
+    fi
+
+    python3 - "$tcd_file" "$GHIDRA_PORT" <<'PYEOF'
+import sys, xml.etree.ElementTree as ET
+tcd_file, port = sys.argv[1], sys.argv[2]
+tree = ET.parse(tcd_file)
+options = tree.getroot().find('.//OPTIONS')
+if options is None:
+    sys.exit(0)
+cat = options.find("CATEGORY[@NAME='GhidraMCP HTTP Server']")
+if cat is None:
+    cat = ET.SubElement(options, 'CATEGORY', NAME='GhidraMCP HTTP Server')
+state = cat.find("STATE[@NAME='Server Port']")
+if state is None:
+    ET.SubElement(cat, 'STATE', NAME='Server Port', TYPE='int', VALUE=port)
+elif state.get('VALUE') != port:
+    state.set('VALUE', port)
+else:
+    sys.exit(0)
+tree.write(tcd_file, xml_declaration=True, encoding='unicode')
+print(f"[OK] Ghidra 插件 port 已自動設定為 {port}")
+PYEOF
+}
+
+# 嘗試自動 patch 插件 port（失敗不中斷）
+_patch_ghidra_plugin_port 2>/dev/null || true
 
 # 尋找 MCP Bridge 腳本
 MCP_BRIDGE=$(find "$MCP_PATH" -name "bridge*.py" -o -name "server*.py" 2>/dev/null | head -1)
@@ -327,7 +369,7 @@ if [[ -n "$MCP_BRIDGE" ]]; then
             --mcp-port "${MCP_PORT}" &
         MCP_PID=$!
 
-        # 等待 MCP 就緒 (最多 30 秒)
+        # 等待 MCP Bridge 就緒 (最多 30 秒)
         for i in {1..30}; do
             if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
                 echo "[OK] MCP Bridge 已就緒 (port: ${MCP_PORT})"
@@ -346,7 +388,33 @@ else
 fi
 
 # 啟動 Ghidra
-"${INSTALL_DIR}/ghidraRun" "$@"
+"${INSTALL_DIR}/ghidraRun" "$@" &
+GHIDRA_PID=$!
+
+# ── 健康檢查：等待 Ghidra 插件 HTTP server 就緒 ──
+if [[ -n "${MCP_PID:-}" ]]; then
+    echo "[INFO] 等待 Ghidra 插件 HTTP server (port: ${GHIDRA_PORT})..."
+    PLUGIN_READY=false
+    for j in {1..60}; do
+        if curl -s --max-time 1 "http://127.0.0.1:${GHIDRA_PORT}/" >/dev/null 2>&1; then
+            echo "[OK] Ghidra 插件 HTTP server 已就緒 (port: ${GHIDRA_PORT})"
+            PLUGIN_READY=true
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ "$PLUGIN_READY" != "true" ]]; then
+        echo "[WARN] Ghidra 插件 HTTP server 未偵測到 (port: ${GHIDRA_PORT})"
+        echo "[WARN] 請確認："
+        echo "       1. 已啟用 GhidraMCPPlugin (File → Configure → Developer)"
+        echo "       2. 插件 port 設為 ${GHIDRA_PORT} (Edit → Tool Options → GhidraMCP HTTP Server)"
+        echo "[WARN] MCP Bridge 已啟動但可能無法正常運作"
+    fi
+fi
+
+# 等待 Ghidra 結束
+wait "$GHIDRA_PID" 2>/dev/null || true
 
 # 清理
 if [[ -n "${MCP_PID:-}" ]]; then

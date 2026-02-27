@@ -28,13 +28,31 @@ source /etc/profile.d/ghidra.sh
 ghidra-mcp    # 啟動 Ghidra + MCP Bridge
 ```
 
+### 首次啟動設定
+
 首次啟動 Ghidra 後，需啟用 GhidraMCP 插件：
 
-1. **File** → **Configure** → **Developer**
-2. 勾選 **GhidraMCPPlugin**
-3. 重啟 Ghidra
+1. **File** → **Configure** → **Developer** → 勾選 **GhidraMCPPlugin**
+2. 關閉 Ghidra
+3. 再次執行 `ghidra-mcp`（Launcher 會自動設定插件 port）
 
-啟用後，Ghidra 插件 HTTP Server 會在 `http://127.0.0.1:18080` 運行（可透過 `.env` 中 `GHIDRA_PLUGIN_PORT` 自訂），MCP Bridge SSE Server 則在 `http://127.0.0.1:60006`。
+> 若自動設定失敗，手動設定：**Edit → Tool Options → GhidraMCP HTTP Server → Server Port: 60005**
+
+### Claude Code 連接
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude mcp add --transport sse ghidra http://127.0.0.1:60006/sse
+```
+
+### Port 架構
+
+| 元件 | Port | 說明 |
+|------|------|------|
+| Ghidra 插件 HTTP Server | 60005 | 插件內建 HTTP API（可透過 `.env` 中 `GHIDRA_PLUGIN_PORT` 自訂） |
+| MCP Bridge SSE Server | 60006 | Claude Code 連接端點（可透過 `.env` 中 `MCP_SERVER_PORT` 自訂） |
+
+> **注意：** GhidraMCP 最新版已知支援 Ghidra 11.3.2。若使用更新版 Ghidra 遇到相容性問題，請用 `sudo GHIDRA_VERSION=11.3.2 ./install.sh` 重新安裝。
 
 ## 系統需求
 

@@ -20,8 +20,12 @@
 - tests/：bats 測試骨架（check_env、setup_ghidra、setup_mcp、install 測試）
 
 ### Changed
+- scripts/setup_mcp.sh：Launcher 新增 `_patch_ghidra_plugin_port()` 自動 patch Ghidra tool config XML，設定插件 HTTP port（無需手動 GUI 操作）
+- scripts/setup_mcp.sh：Launcher 新增 Ghidra 插件健康檢查（啟動後 poll 插件 HTTP server，最多 60 秒，超時提示啟用步驟）
+- scripts/setup_mcp.sh：Ghidra 插件 HTTP port 預設改為 60005（MCP Bridge SSE 維持 60006），雙高位 port 避免衝突
+- scripts/setup_ghidra.sh：自動抓取最新 Ghidra 時新增版本相容性警告（GhidraMCP 已知支援 11.3.2）
+- README.md：新增完整 post-install 步驟清單、Port 架構表、版本相容性說明
 - scripts/setup_mcp.sh：啟動器（launcher）新增 bridge 完整 CLI 參數（`--ghidra-server`、`--transport sse`、`--mcp-port`），不再依賴 bridge 預設值
-- scripts/setup_mcp.sh：Ghidra 插件 HTTP port 預設改為 18080（避免 8080 常見衝突），新增 `GHIDRA_PLUGIN_PORT` 環境變數支援自訂
 - config/.env.template：新增 `GHIDRA_PLUGIN_PORT` 欄位，分離 Ghidra 插件 port 與 MCP Bridge port 設定
 - scripts/setup_mcp.sh：新增雙模式 MCP 連接（Claude Code CLI / API Key），重構 setup_mcp_configure_api → setup_mcp_configure_connection
 - README.md：新增 MCP 連接模式說明，Claude Code CLI 為推薦方式

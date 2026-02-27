@@ -127,7 +127,10 @@ source "${VENV_DIR}/bin/activate"
 
 # Port 設定
 MCP_PORT="${MCP_SERVER_PORT:-60006}"
-GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-18080}"
+GHIDRA_PORT="${GHIDRA_PLUGIN_PORT:-60005}"
+
+# 自動 patch Ghidra 插件 port（透過 Python XML patch tool config）
+_patch_ghidra_plugin_port  # 修改 _code_browser.tcd
 
 # 啟動 MCP Bridge (背景，帶完整參數)
 python3 /opt/ghidra-mcp/GhidraMCP/bridge_mcp_ghidra.py \
@@ -137,7 +140,7 @@ python3 /opt/ghidra-mcp/GhidraMCP/bridge_mcp_ghidra.py \
     --mcp-port "${MCP_PORT}" &
 MCP_PID=$!
 
-# 等待 MCP 就緒 (最多 30 秒)
+# 等待 MCP Bridge 就緒 (最多 30 秒)
 for i in {1..30}; do
     if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
         echo "[OK] MCP Bridge 已就緒"
@@ -146,8 +149,21 @@ for i in {1..30}; do
     sleep 1
 done
 
-# 啟動 Ghidra
-/opt/ghidra/ghidraRun "$@"
+# 啟動 Ghidra (背景)
+/opt/ghidra/ghidraRun "$@" &
+GHIDRA_PID=$!
+
+# 健康檢查：等待 Ghidra 插件 HTTP server 就緒 (最多 60 秒)
+for j in {1..60}; do
+    if curl -s "http://127.0.0.1:${GHIDRA_PORT}/" >/dev/null 2>&1; then
+        echo "[OK] Ghidra 插件 HTTP server 已就緒"
+        break
+    fi
+    sleep 1
+done
+
+# 等待 Ghidra 結束
+wait "$GHIDRA_PID" 2>/dev/null || true
 
 # 清理
 kill "$MCP_PID" 2>/dev/null || true
