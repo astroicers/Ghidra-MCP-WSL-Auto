@@ -1,5 +1,15 @@
 # Ghidra-MCP-WSL-Auto
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
+[![Platform: WSL2](https://img.shields.io/badge/Platform-WSL2-0078D4?logo=windows&logoColor=white)](https://docs.microsoft.com/en-us/windows/wsl/)
+
+> **English** | [中文](#功能特色)
+>
+> One-click deployment of **Ghidra** reverse engineering platform + **[GhidraMCP](https://github.com/LaurieWired/GhidraMCP)** (Model Context Protocol) plugin on **WSL2 Ubuntu/Debian**. Enables AI-assisted binary analysis via Claude Code integration.
+>
+> **Quick start:** `git clone https://github.com/astroicers/Ghidra-MCP-WSL-Auto.git && cd Ghidra-MCP-WSL-Auto && sudo ./install.sh`
+
 一鍵部署 **Ghidra** 逆向工程平台及 **[GhidraMCP](https://github.com/LaurieWired/GhidraMCP)** (Model Context Protocol) 插件於 **WSL2 Ubuntu/Debian** 環境。
 
 ## 功能特色
@@ -16,7 +26,7 @@
 ## 快速開始
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Ghidra-MCP-WSL-Auto.git
+git clone https://github.com/astroicers/Ghidra-MCP-WSL-Auto.git
 cd Ghidra-MCP-WSL-Auto
 sudo ./install.sh
 ```
@@ -160,6 +170,6 @@ make spec-list     # 查看技術規格書
 - [docs/adr/](docs/adr/) — 架構決策記錄
 - [docs/specs/](docs/specs/) — 技術規格書
 
-## 授權
+## 授權 / License
 
-MIT License
+[MIT License](LICENSE)
