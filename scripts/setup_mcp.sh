@@ -370,15 +370,17 @@ if [[ -n "$MCP_BRIDGE" ]]; then
         MCP_PID=$!
 
         # 等待 MCP Bridge 就緒 (最多 30 秒)
+        MCP_READY=false
         for i in {1..30}; do
             if curl -s "http://127.0.0.1:${MCP_PORT}/" >/dev/null 2>&1; then
                 echo "[OK] MCP Bridge 已就緒 (port: ${MCP_PORT})"
+                MCP_READY=true
                 break
             fi
             sleep 1
         done
 
-        if [[ $i -eq 30 ]]; then
+        if [[ "$MCP_READY" != "true" ]]; then
             echo "[WARN] MCP Bridge 啟動逾時，Ghidra 仍可正常使用"
         fi
     fi
