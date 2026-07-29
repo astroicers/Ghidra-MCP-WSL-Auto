@@ -158,3 +158,125 @@ teardown() {
 
     rm -f "$launcher"
 }
+
+# ── ADR-002: 本地模型模式（Tier A 離線 agentic） ──
+
+@test "_parse_model_size_b: parses standard ollama tags" {
+    load_module setup_mcp
+    [ "$(_parse_model_size_b 'qwen2.5:32b')" = "32" ]
+    [ "$(_parse_model_size_b 'llama3.1:8b')" = "8" ]
+    [ "$(_parse_model_size_b 'qwen2.5-coder:14b')" = "14" ]
+    [ "$(_parse_model_size_b 'llama3.3:70b')" = "70" ]
+}
+
+@test "_parse_model_size_b: takes largest value for MoE naming" {
+    load_module setup_mcp
+    # qwen3-30b-a3b 的總參數量為 30B，不應誤判為 3B
+    [ "$(_parse_model_size_b 'qwen3-30b-a3b')" = "30" ]
+}
+
+@test "_parse_model_size_b: returns empty when size is undeterminable" {
+    load_module setup_mcp
+    [ -z "$(_parse_model_size_b 'mistral-nemo')" ]
+    [ -z "$(_parse_model_size_b 'custom-model:latest')" ]
+}
+
+@test "_warn_if_model_too_small: warns below threshold (13b)" {
+    load_module setup_mcp
+    run _warn_if_model_too_small "deepseek-r1:13b"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"低於 agentic 建議門檻"* ]]
+}
+
+@test "_warn_if_model_too_small: passes at threshold (14b)" {
+    load_module setup_mcp
+    run _warn_if_model_too_small "qwen2.5-coder:14b"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"符合 agentic 門檻"* ]]
+}
+
+@test "_warn_if_model_too_small: skips check when size unknown" {
+    load_module setup_mcp
+    run _warn_if_model_too_small "mistral-nemo"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"略過規模檢查"* ]]
+}
+
+@test "_setup_mcp_configure_local_mode: writes MCP_MODE=local with defaults" {
+    load_module setup_mcp
+    mkdir -p "${MCP_DIR}/GhidraMCP"
+
+    printf '\n\n' | _setup_mcp_configure_local_mode >/dev/null 2>&1
+
+    [ -f "$MCP_ENV_FILE" ]
+    grep -q "MCP_MODE=local" "$MCP_ENV_FILE"
+    grep -q "OLLAMA_MODEL=qwen2.5:32b" "$MCP_ENV_FILE"
+    grep -q "OLLAMA_HOST=http://127.0.0.1:11434" "$MCP_ENV_FILE"
+    grep -q "MCP_SERVER_PORT=60006" "$MCP_ENV_FILE"
+}
+
+@test "_setup_mcp_configure_local_mode: env file is 644 (contains no secrets)" {
+    load_module setup_mcp
+    mkdir -p "${MCP_DIR}/GhidraMCP"
+
+    printf '\n\n' | _setup_mcp_configure_local_mode >/dev/null 2>&1
+
+    [ "$(stat -c '%a' "$MCP_ENV_FILE")" = "644" ]
+    ! grep -qi "api_key" "$MCP_ENV_FILE"
+}
+
+@test "_setup_mcp_configure_local_mode: honours custom model input" {
+    load_module setup_mcp
+    mkdir -p "${MCP_DIR}/GhidraMCP"
+
+    printf 'llama3.3:70b\n\n' | _setup_mcp_configure_local_mode >/dev/null 2>&1
+
+    grep -q "OLLAMA_MODEL=llama3.3:70b" "$MCP_ENV_FILE"
+}
+
+# ── 離線就緒自檢 ──
+
+@test "setup_mcp_check_offline: reports failure when Ollama is unreachable" {
+    load_module setup_mcp
+    export OLLAMA_HOST="http://127.0.0.1:1"   # 保證無法連線
+
+    run setup_mcp_check_offline
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"無法連接 Ollama"* ]]
+    [[ "$output" == *"ollama serve"* ]]
+}
+
+@test "parse_args: accepts --check-offline" {
+    load_install_functions
+    CHECK_OFFLINE=false
+    parse_args --check-offline
+    [ "$CHECK_OFFLINE" = "true" ]
+}
+
+# ── Launcher 連接模式提示 ──
+
+@test "setup_mcp_create_launcher: emits per-mode next-step hints" {
+    load_module setup_mcp
+    mkdir -p "${SCRIPT_DIR}/bin"
+
+    run setup_mcp_create_launcher
+    [ "$status" -eq 0 ]
+
+    local launcher="${SCRIPT_DIR}/bin/ghidra-mcp"
+    grep -q "MCP_MODE" "$launcher"
+    grep -q "ollmcp" "$launcher"
+    grep -q "claude mcp add" "$launcher"
+
+    rm -f "$launcher"
+}
+
+# ── 回歸：既有模式不受影響 ──
+
+@test "_setup_mcp_configure_cli_mode: still writes MCP_MODE=cli" {
+    load_module setup_mcp
+    mkdir -p "${MCP_DIR}/GhidraMCP"
+
+    run _setup_mcp_configure_cli_mode
+    [ "$status" -eq 0 ]
+    grep -q "MCP_MODE=cli" "$MCP_ENV_FILE"
+}

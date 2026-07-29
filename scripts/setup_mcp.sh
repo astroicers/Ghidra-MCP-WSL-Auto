@@ -7,6 +7,12 @@ MCP_PATH="${MCP_DIR:-/opt/ghidra-mcp}/GhidraMCP"
 MCP_VENV="${MCP_PATH}/.venv"
 MCP_ENV_FILE="${MCP_PATH}/.env"
 
+# 本地模型預設值（Tier A：離線 agentic）
+DEFAULT_OLLAMA_MODEL="${DEFAULT_OLLAMA_MODEL:-qwen2.5:32b}"
+DEFAULT_OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
+# 多步 tool calling 可靠度門檻（B 參數量）；低於此值 agentic 流程失敗率極高
+MIN_AGENTIC_MODEL_B="${MIN_AGENTIC_MODEL_B:-14}"
+
 # ── Clone 儲存庫 ──
 setup_mcp_clone_repo() {
     if [[ -d "${MCP_PATH}/.git" ]]; then
@@ -186,15 +192,17 @@ setup_mcp_configure_connection() {
 
     echo ""
     echo "  請選擇 MCP 連接模式："
-    echo "    1) Claude Code CLI（推薦）"
+    echo "    1) Claude Code CLI（能力最強，需連線至雲端）"
     echo "    2) API Key（OpenAI / Anthropic / 自訂）"
+    echo "    3) 本地模型（Ollama + 支援 SSE 的 MCP client，完全離線）"
     echo ""
 
     local mode_choice
-    read -r -p "  選擇 [1-2] (預設: 1): " mode_choice
+    read -r -p "  選擇 [1-3] (預設: 1): " mode_choice
 
     case "${mode_choice:-1}" in
         2) _setup_mcp_configure_api_key ;;
+        3) _setup_mcp_configure_local_mode ;;
         *) _setup_mcp_configure_cli_mode ;;
     esac
 }
@@ -256,6 +264,80 @@ EOF
     chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$MCP_ENV_FILE"
 
     log_ok "API Key 已設定 (提供者: ${provider})"
+}
+
+# ── 由模型 tag 解析參數量（qwen2.5:32b → 32），無法判斷時回傳空字串 ──
+_parse_model_size_b() {
+    local model="$1"
+    # 取所有 <數字>b 樣式中的最大值：MoE 命名（qwen3-30b-a3b）應以總參數量為準
+    echo "$model" \
+        | grep -oiE '[0-9]+b([^a-z0-9]|$)' \
+        | grep -oE '^[0-9]+' \
+        | sort -n | tail -1
+}
+
+# ── 模型規模警告：小模型的多步 tool calling 失敗率極高 ──
+_warn_if_model_too_small() {
+    local model="$1" size
+    size="$(_parse_model_size_b "$model")"
+
+    if [[ -z "$size" ]]; then
+        log_info "無法由名稱判斷 ${model} 的參數量，略過規模檢查"
+        return 0
+    fi
+
+    if (( size < MIN_AGENTIC_MODEL_B )); then
+        log_warn "模型 ${model} 約 ${size}B，低於 agentic 建議門檻 ${MIN_AGENTIC_MODEL_B}B"
+        echo ""
+        echo "    小模型在多步 tool calling 上並非「效果較差」，而是會直接失敗："
+        echo "      - 3B 級：約 89% 的 tool 初始化失敗率"
+        echo "      - 32B 級：約 0%"
+        echo "    且誤差會複利累積（每步 95% 成功 × 8 步 ≈ 66% 整體成功）。"
+        echo ""
+        echo "    建議：改用 ${MIN_AGENTIC_MODEL_B}B 以上模型，或改走模式 1 / 2（雲端）。"
+        echo ""
+        return 1
+    fi
+
+    log_ok "模型 ${model} 約 ${size}B，符合 agentic 門檻（≥ ${MIN_AGENTIC_MODEL_B}B）"
+}
+
+_setup_mcp_configure_local_mode() {
+    echo ""
+    echo "  本地模型模式（完全離線，不會傳送任何資料至雲端）"
+    echo ""
+
+    local ollama_model ollama_host
+    read -r -p "  Ollama 模型 (預設: ${DEFAULT_OLLAMA_MODEL}): " ollama_model
+    ollama_model="${ollama_model:-$DEFAULT_OLLAMA_MODEL}"
+    read -r -p "  Ollama 位址 (預設: ${DEFAULT_OLLAMA_HOST}): " ollama_host
+    ollama_host="${ollama_host:-$DEFAULT_OLLAMA_HOST}"
+
+    cat > "$MCP_ENV_FILE" <<EOF
+# Ghidra-MCP-WSL-Auto 自動產生
+MCP_MODE=local
+OLLAMA_HOST=${ollama_host}
+OLLAMA_MODEL=${ollama_model}
+GHIDRA_PLUGIN_PORT=60005
+MCP_SERVER_PORT=60006
+EOF
+    # 本模式不含任何金鑰，權限比照 CLI 模式
+    chmod 644 "$MCP_ENV_FILE"
+    log_ok "已選擇本地模型模式 (${ollama_model})"
+
+    _warn_if_model_too_small "$ollama_model" || true
+
+    echo "  下一步：安裝 Ollama 與支援 SSE 的 MCP client"
+    echo "    curl -fsSL https://ollama.com/install.sh | sh"
+    echo "    ollama pull ${ollama_model}"
+    echo "    pipx install mcp-client-for-ollama   # 或 uvx mcp-client-for-ollama"
+    echo ""
+    echo "  啟動 ghidra-mcp 後，以下列指令連接既有 SSE 端點："
+    echo "    ollmcp --mcp-server-url http://127.0.0.1:60006/sse --model ${ollama_model}"
+    echo ""
+    echo "  註：60006 為標準 MCP SSE 端點，任何支援 SSE 的 client 皆可連接"
+    echo "      （ollmcp / llama.cpp / Cline / 5ire 等）。"
+    echo ""
 }
 
 _setup_mcp_create_env_template() {
@@ -415,6 +497,24 @@ if [[ -n "${MCP_PID:-}" ]]; then
     fi
 fi
 
+# ── 依連接模式提示下一步 ──
+if [[ -n "${MCP_PID:-}" ]]; then
+    case "${MCP_MODE:-cli}" in
+        local)
+            echo "[INFO] 連接模式: 本地模型（離線）"
+            echo "       ollmcp --mcp-server-url http://127.0.0.1:${MCP_PORT}/sse --model ${OLLAMA_MODEL:-qwen2.5:32b}"
+            ;;
+        apikey)
+            echo "[INFO] 連接模式: API Key (${LLM_PROVIDER:-未指定})"
+            echo "       MCP SSE 端點: http://127.0.0.1:${MCP_PORT}/sse"
+            ;;
+        *)
+            echo "[INFO] 連接模式: Claude Code CLI"
+            echo "       claude mcp add --transport sse ghidra http://127.0.0.1:${MCP_PORT}/sse"
+            ;;
+    esac
+fi
+
 # 等待 Ghidra 結束
 wait "$GHIDRA_PID" 2>/dev/null || true
 
@@ -430,6 +530,67 @@ LAUNCHER
     cp "$launcher" /usr/local/bin/ghidra-mcp 2>/dev/null || true
 
     log_ok "啟動器已建立: ${launcher}"
+}
+
+# ── 離線就緒自檢（--check-offline） ──
+setup_mcp_check_offline() {
+    log_info "=== 離線就緒自檢 ==="
+    local failed=0
+
+    if [[ -f "$MCP_ENV_FILE" ]]; then
+        set -a
+        # shellcheck source=/dev/null
+        source "$MCP_ENV_FILE"
+        set +a
+        log_ok "已載入設定: ${MCP_ENV_FILE} (MCP_MODE=${MCP_MODE:-未設定})"
+    else
+        log_warn "尚未設定 ${MCP_ENV_FILE}，改以預設值檢查"
+    fi
+
+    local ollama_host="${OLLAMA_HOST:-$DEFAULT_OLLAMA_HOST}"
+    local ollama_model="${OLLAMA_MODEL:-$DEFAULT_OLLAMA_MODEL}"
+    local mcp_port="${MCP_SERVER_PORT:-60006}"
+
+    # 1) Ollama daemon
+    local tags_json=""
+    if tags_json=$(curl -s --max-time 3 "${ollama_host}/api/tags" 2>/dev/null) && [[ -n "$tags_json" ]]; then
+        log_ok "Ollama daemon 運行中: ${ollama_host}"
+    else
+        log_error "無法連接 Ollama: ${ollama_host}"
+        echo "         啟動方式: ollama serve"
+        tags_json=""
+        ((failed++)) || true
+    fi
+
+    # 2) 模型是否已下載
+    if [[ -n "$tags_json" ]]; then
+        if echo "$tags_json" | grep -qF "\"${ollama_model}"; then
+            log_ok "模型已就緒: ${ollama_model}"
+        else
+            log_error "模型未下載: ${ollama_model}"
+            echo "         下載方式: ollama pull ${ollama_model}"
+            ((failed++)) || true
+        fi
+    fi
+
+    # 3) 模型規模是否足以支撐多步 tool calling
+    _warn_if_model_too_small "$ollama_model" || { ((failed++)) || true; }
+
+    # 4) MCP SSE 端點
+    if curl -s --max-time 2 "http://127.0.0.1:${mcp_port}/" >/dev/null 2>&1; then
+        log_ok "MCP SSE 端點可連接: http://127.0.0.1:${mcp_port}/sse"
+    else
+        log_warn "MCP SSE 端點未回應 (port ${mcp_port})，請先執行 ghidra-mcp"
+    fi
+
+    echo ""
+    if (( failed == 0 )); then
+        log_ok "離線就緒檢查通過，可執行離線 agentic 分析"
+        return 0
+    fi
+
+    log_error "離線就緒檢查未通過（${failed} 項需處理）"
+    return 1
 }
 
 # ── 統一入口 ──

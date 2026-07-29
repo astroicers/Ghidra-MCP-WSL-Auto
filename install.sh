@@ -21,6 +21,7 @@ VERBOSE=false
 SKIP_APT_UPDATE=false
 NO_INTERACTIVE=false
 UNINSTALL=false
+CHECK_OFFLINE=false
 
 # ── 日誌函式 ──
 sanitize_log() {
@@ -69,6 +70,7 @@ print_usage() {
       --skip-update     跳過 apt update/upgrade
       --ghidra-version  指定 Ghidra 版本 (例: 11.3.1)
       --no-interactive  跳過互動式連接模式設定
+      --check-offline   檢查離線模式就緒狀態後結束（不安裝）
       --uninstall       移除已安裝的元件
 
 環境變數覆寫：
@@ -76,11 +78,14 @@ print_usage() {
   MCP_DIR               MCP 工作目錄 (預設: /opt/ghidra-mcp)
   GHIDRA_VERSION        指定 Ghidra 版本
   GHIDRA_XMX            JVM 最大記憶體 MB (預設: 自動計算)
+  OLLAMA_HOST           Ollama 位址 (預設: http://127.0.0.1:11434)
+  MIN_AGENTIC_MODEL_B   agentic 模型參數量門檻 B (預設: 14)
 
 範例：
   sudo ./install.sh                           # 標準安裝
   sudo ./install.sh --verbose --skip-update   # 詳細模式，跳過系統更新
   sudo GHIDRA_VERSION=11.3.1 ./install.sh     # 指定版本
+  ./install.sh --check-offline                # 檢查離線就緒狀態
 USAGE
 }
 
@@ -106,6 +111,10 @@ parse_args() {
                 ;;
             --no-interactive)
                 NO_INTERACTIVE=true
+                shift
+                ;;
+            --check-offline)
+                CHECK_OFFLINE=true
                 shift
                 ;;
             --uninstall)
@@ -187,6 +196,14 @@ main() {
     # 初始化日誌
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
     touch "$LOG_FILE" 2>/dev/null || true
+
+    # 離線就緒自檢模式（診斷用，不執行安裝）
+    # 以 `|| rc=$?` 承接非零回傳，避免 set -e 與 ERR trap 將檢查失敗誤報為安裝錯誤
+    if [[ "$CHECK_OFFLINE" == "true" ]]; then
+        local rc=0
+        setup_mcp_check_offline || rc=$?
+        exit "$rc"
+    fi
 
     log_info "開始安裝 Ghidra-MCP-WSL-Auto"
 
