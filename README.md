@@ -82,8 +82,8 @@ claude mcp add --transport sse ghidra http://127.0.0.1:60006/sse
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:32b
 
-# 2. 安裝支援 SSE 的 MCP client
-pipx install mcp-client-for-ollama      # 或 uvx mcp-client-for-ollama
+# 2. 安裝支援 SSE 的 MCP client（套件與指令名皆為 ollmcp）
+uv tool install --upgrade ollmcp        # 或 pip install --upgrade ollmcp
 
 # 3. 確認離線環境就緒
 ./install.sh --check-offline
@@ -93,6 +93,8 @@ ollmcp --mcp-server-url http://127.0.0.1:60006/sse --model qwen2.5:32b
 ```
 
 > 其他支援 SSE 的 client（llama.cpp 內建 MCP client、Cline、5ire 等）同樣可直接連接此端點，無須修改本專案。
+>
+> **首次設定建議照 [`docs/VERIFICATION.md`](docs/VERIFICATION.md) 逐步驗證**——該文件涵蓋每一步的預期輸出與失敗判讀，包含幾個容易誤判為「連線失敗」的常見陷阱。
 
 **Tier B — 硬體僅支援 <14B 模型**
 
@@ -229,6 +231,7 @@ Ghidra-MCP-WSL-Auto/
 ├── docs/                      # 所有文件
 │   ├── SRS.md                 #   需求規格書
 │   ├── architecture.md        #   系統架構
+│   ├── VERIFICATION.md        #   端到端實測指南（Tier A 離線 agentic）
 │   ├── adr/                   #   架構決策記錄
 │   └── specs/                 #   技術規格書
 └── Makefile                   # 開發指令

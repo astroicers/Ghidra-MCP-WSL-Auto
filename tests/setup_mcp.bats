@@ -225,6 +225,19 @@ teardown() {
     ! grep -qi "api_key" "$MCP_ENV_FILE"
 }
 
+@test "_setup_mcp_configure_local_mode: emits correct ollmcp install command" {
+    load_module setup_mcp
+    mkdir -p "${MCP_DIR}/GhidraMCP"
+
+    # 函式須在當前 shell 執行（已由 load_module 載入），不可用 run bash -c 另開 shell
+    local out
+    out="$(printf '\n\n' | _setup_mcp_configure_local_mode 2>&1)"
+
+    # 套件與指令名為 ollmcp；mcp-client-for-ollama 僅為 repo 名稱，pipx 安裝會失敗
+    [[ "$out" == *"install --upgrade ollmcp"* ]]
+    [[ "$out" != *"pipx install mcp-client-for-ollama"* ]]
+}
+
 @test "_setup_mcp_configure_local_mode: honours custom model input" {
     load_module setup_mcp
     mkdir -p "${MCP_DIR}/GhidraMCP"

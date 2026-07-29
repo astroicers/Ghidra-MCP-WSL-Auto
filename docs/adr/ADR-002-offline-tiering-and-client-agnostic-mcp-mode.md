@@ -26,7 +26,7 @@
 
 ### 選項 A：新增 `MCP_MODE=local`，以既有 SSE 端點承接本地 MCP client
 
-- **作法**：在既有連接模式選單新增第三項，寫入 `MCP_MODE=local` 與 Ollama 相關設定；引導使用者以支援 SSE 的本地 client（如 `mcp-client-for-ollama`、llama.cpp 內建 MCP client）連接 `http://127.0.0.1:60006/sse`。
+- **作法**：在既有連接模式選單新增第三項，寫入 `MCP_MODE=local` 與 Ollama 相關設定；引導使用者以支援 SSE 的本地 client（如 `mcp-client-for-ollama`——套件與指令名為 `ollmcp`、或 llama.cpp 內建 MCP client）連接 `http://127.0.0.1:60006/sse`。
 - **優點**：
   - 不需變更架構，launcher 與 bridge 完全不動
   - 實作規模約 30 行，風險極低
