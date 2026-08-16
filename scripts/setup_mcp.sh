@@ -330,13 +330,14 @@ EOF
     echo "  下一步：安裝 Ollama 與支援 SSE 的 MCP client"
     echo "    curl -fsSL https://ollama.com/install.sh | sh"
     echo "    ollama pull ${ollama_model}"
-    echo "    pipx install mcp-client-for-ollama   # 或 uvx mcp-client-for-ollama"
+    echo "    uv tool install --upgrade ollmcp   # 或 pip install --upgrade ollmcp"
     echo ""
     echo "  啟動 ghidra-mcp 後，以下列指令連接既有 SSE 端點："
     echo "    ollmcp --mcp-server-url http://127.0.0.1:60006/sse --model ${ollama_model}"
     echo ""
     echo "  註：60006 為標準 MCP SSE 端點，任何支援 SSE 的 client 皆可連接"
     echo "      （ollmcp / llama.cpp / Cline / 5ire 等）。"
+    echo "  完整端到端實測步驟請見 docs/VERIFICATION.md"
     echo ""
 }
 
